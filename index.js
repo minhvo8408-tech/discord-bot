@@ -1,15 +1,13 @@
-const express = require("express");
-const app = express();
-
-app.get("/", (req, res) => {
-  res.send("bot online");
-});
-
-app.listen(3000, () => {
-  console.log("web chạy");
-});
 const { Client, GatewayIntentBits } = require("discord.js");
 const fs = require("fs");
+
+// ===== LOAD DATA =====
+let debts = {};
+try {
+  debts = JSON.parse(fs.readFileSync("./debts.json"));
+} catch {
+  debts = {};
+}
 
 const client = new Client({
   intents: [
@@ -20,19 +18,10 @@ const client = new Client({
   ]
 });
 
-// ===== LOAD DATA =====
-let debts = {};
-try {
-  debts = JSON.parse(fs.readFileSync("./debts.json"));
-} catch {
-  debts = {};
-}
-
 client.once("ready", () => {
   console.log(`Bot online: ${client.user.tag}`);
 });
 
-// ===== MAIN =====
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
@@ -66,10 +55,7 @@ client.on("messageCreate", async (message) => {
 Bấm 🌧️ để tham gia
 • kết thúc trong: <t:${endTime}:R>
 • host: ${message.author}`,
-      color: 0x000000,
-      thumbnail: {
-        url: client.user.displayAvatarURL()
-      }
+      color: 0x000000
     };
 
     const msg = await message.channel.send({ embeds: [embed] });
@@ -82,86 +68,85 @@ Bấm 🌧️ để tham gia
       if (!reaction) return message.channel.send("không có ai tham gia");
 
       const users = await reaction.users.fetch();
-      const list = users.filter(u => !u.bot).map(u => u);
+      const list = users.filter(u => !u.bot);
 
-      if (list.length === 0) {
+      if (list.size === 0) {
         return message.channel.send("không có ai tham gia");
       }
 
-      const winner = list[Math.floor(Math.random() * list.length)];
-      message.channel.send(`# alo con bạc ${winner} lên sòng lẹ`);
+      const winner = list.random();
+      message.channel.send(`alo con bạc ${winner} lên nhận quà 😈`);
     }, duration * 1000);
   }
 
   // =====================
-  // 💰 MNO
+  // 💸 MNO (mình nợ người khác)
   // =====================
   if (cmd === "mno") {
-    const user = message.mentions.users.first();
+    const target = message.mentions.users.first();
     const amount = parseInt(args[2]);
 
-    if (!user || isNaN(amount)) {
-      return message.reply("dùng: mno @user 500000");
+    if (!target || isNaN(amount)) {
+      return message.reply("dùng: mno @user 500");
     }
 
-    if (!debts[user.id]) debts[user.id] = 0;
-    debts[user.id] += amount;
+    const author = message.author;
+
+    if (!debts[author.id]) debts[author.id] = {};
+    if (!debts[author.id][target.id]) debts[author.id][target.id] = 0;
+
+    debts[author.id][target.id] += amount;
 
     fs.writeFileSync("./debts.json", JSON.stringify(debts, null, 2));
 
-    return message.channel.send(
-      `${user.username} đang nợ bae ${debts[user.id].toLocaleString()}`
+    return message.reply(
+      `bạn nợ ${target.username}: ${debts[author.id][target.id].toLocaleString()}`
     );
   }
 
   // =====================
-  // 💸 MXOA
-  // =====================
-  if (cmd === "mxoa") {
-    const user = message.mentions.users.first();
-    const amount = parseInt(args[2]);
-
-    if (!user || isNaN(amount)) {
-      return message.reply("dùng: mxoa @user 500000");
-    }
-
-    if (!debts[user.id]) debts[user.id] = 0;
-
-    debts[user.id] -= amount;
-    if (debts[user.id] < 0) debts[user.id] = 0;
-
-    fs.writeFileSync("./debts.json", JSON.stringify(debts, null, 2));
-
-    return message.channel.send(
-      `${user.username} còn nợ bae ${debts[user.id].toLocaleString()}`
-    );
-  }
-
-  // =====================
-  // 📊 MCHECK (KHÔNG PING)
+  // 📊 MCHECK (KHÔNG GỘP)
   // =====================
   if (cmd === "mcheck") {
-    let text = " <:emoji_74:1485446111425593374> Những người đang nợ bae:\n\n";
-    let hasDebt = false;
+    const author = message.author;
 
-    for (let id in debts) {
-      if (debts[id] > 0) {
-        const user = await client.users.fetch(id);
-        text += `${user.username}: ${debts[id].toLocaleString()}\n`;
+    let text = `<:emoji_74:1485446111425593374> Những người đang nợ bae:\n\n`;
+
+    let hasDebt = false;
+    let hasOwe = false;
+
+    // ===== AI NỢ MÌNH =====
+    for (let userId in debts) {
+      if (debts[userId][author.id]) {
         hasDebt = true;
+        const user = await client.users.fetch(userId);
+        text += `${user.username}: ${debts[userId][author.id].toLocaleString()}\n`;
       }
     }
 
     if (!hasDebt) {
-      text += "không có ai đang nợ bae hết <:doi:1495584346076217556> ";
+      text += "không có ai đang nợ bae hết <:doi:1495584346076217556>";
     }
 
-    text += "\n <:emoji_74:1485446111425593374> Những người bae đang nợ:\n";
-    text += "bae không nợ ai cả <a:lacdit:1488782092434145291>";
+    // ===== XUỐNG DÒNG =====
+    text += `\n\n<:emoji_74:1485446111425593374> Những người bae đang nợ:\n\n`;
+
+    // ===== MÌNH NỢ AI =====
+    if (debts[author.id]) {
+      for (let userId in debts[author.id]) {
+        hasOwe = true;
+        const user = await client.users.fetch(userId);
+        text += `${user.username}: ${debts[author.id][userId].toLocaleString()}\n`;
+      }
+    }
+
+    if (!hasOwe) {
+      text += "bae không nợ ai cả <:lacdit:1488782092434145291>";
+    }
 
     return message.channel.send(text);
   }
 });
 
 // ===== LOGIN =====
-client.login(process.env.TOKEN);``
+client.login(process.env.TOKEN);
