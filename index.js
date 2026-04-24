@@ -75,7 +75,7 @@ Bấm 🌧️ để tham gia
       }
 
       const winner = list.random();
-      message.channel.send(`alo con bạc ${winner} lên nhận quà 😈`);
+      message.channel.send(`# alo con bạc ${winner} lên sòng lẹ`);
     }, duration * 1000);
   }
 
@@ -123,7 +123,6 @@ Bấm 🌧️ để tham gia
         text += `${user.username}: ${debts[userId][author.id].toLocaleString()}\n`;
       }
     }
-
     if (!hasDebt) {
       text += "không có ai đang nợ bae hết <:doi:1495584346076217556>";
     }
